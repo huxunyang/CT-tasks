@@ -49,12 +49,26 @@ git clone <远程地址>              # 克隆远程仓库
 ## 🌱 分支操作
 
 ```bash
-git branch                         # 查看本地分支
-git branch <分支名>               # 创建分支
-git checkout <分支名>            # 切换分支
-git checkout -b <分支名>         # 创建并切换分支
-git merge <分支名>               # 合并分支
-git branch -d <分支名>           # 删除分支
+git branch                    # 查看本地分支
+git branch <分支名>           # 创建分支，默认基于当前本地分支，若要基于其他本地或远程分支，再加上<其他分支名> 
+                              # 如：git branch <分支名> <其他分支名>，下同
+git checkout <分支名>         # 切换分支
+git checkout -b <分支名>      # 创建并切换分支，git checkout -b <分支名> <其他分支名>
+git merge <分支名>            # 合并分支
+git branch -d <分支名>        # 删除分支
+```
+
+---
+
+##  🚀 追踪远程分支（tracking）
+
+```bash
+git checkout feature-x                        # 切换到 feature-x 分支
+git branch --set-upstream-to=origin/feature-x # 设置当前本地分支追踪远程分支 origin/feature-x
+
+git checkout -b feature-x                     # 创建并切换本地分支 feature-x，但还没设置追踪，创建时指定远程分支，则默认追踪
+git push --set-upstream origin feature-x      # 首次 push + --set-upstream（用得最多）设置追踪远程origin/feature-x
+                                              # 简写git push -u origin feature-x
 ```
 
 ---
