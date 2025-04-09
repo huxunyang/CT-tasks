@@ -1,6 +1,4 @@
-clc; 
-clear; 
-close all;
+clc; clear; close all;
 
 load('14_beer_comp.mat');
 

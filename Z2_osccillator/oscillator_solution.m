@@ -1,75 +1,97 @@
 clc; clear; close all;
 
-% Load data
-load('z2_oscillator_comp.mat');
-
-% sinogram 
+% step1 Load sinogram
+load('z2_oscillator_comp.mat'); 
 figure;
-subplot(2,1,1);
 imagesc(theta, 1:size(sinogram,1), sinogram);
 colormap gray;
 colorbar;
-xlabel('Angle (degrees)');
-ylabel('Detector index');
+xlabel('Projection Angle (degrees)');
+ylabel('Detector Position');
 title('Sinogram');
+% step2 Define time (1 degree per second, 360 projections)
+num_angles = size(sinogram, 2);
+t_data = time;
 
-% Filtered Back Projection
-rec = iradon(sinogram, theta, 'linear', 'Ram-Lak', 1.0, nSize);
-subplot(2,1,2);
-imagesc(rec);
-colormap gray;
-axis image;
-title('Reconstructed Image');
+% step3 Compute physical detector positions (unit: mm) ---
+num_detectors = size(sinogram, 1);
+detector_spacing = 1; 
+center_pos = (num_detectors + 1) / 2;
+detector_positions = ((1:num_detectors) - center_pos) * detector_spacing;  
+% [-72, ..., +72] 
 
-%% === 提取轨迹（几何方法） ===
-[detector_len, num_angles] = size(sinogram);
-R = detector_len / 2;
-theta_rad = deg2rad(theta);
-s_idx = vec2ind(sinogram); % 每列最大值的位置
-s_vals = s_idx - R;        % 投影值 s_i（已居中）
-
-A = [cos(theta_rad'); sin(theta_rad')'];  % 系数矩阵，每行为 [cosθ sinθ]
-A = A';  % (360x2)
-pos = zeros(num_angles, 2);  % 存储[x, y]位置
-
+% step4: Compute weighted centroid of each projection column (in mm) ---
+r_data = zeros(1, num_angles);  % projected positions
 for i = 1:num_angles
-    Ai = A(i, :);
-    si = s_vals(i);
-    pos(i,:) = (Ai' * si) / (Ai * Ai');  % 最小二乘解：x = A^T * s / (A*A^T)
+    column = double(sinogram(:, i));  % ensure float
+    weights = column;
+    r_data(i) = sum(weights .* detector_positions') / sum(weights);
 end
 
-x_pos = pos(:,1);
-y_pos = pos(:,2);
+% step5: Center r_data to mean-zero for stability 
+%r_data = r_data - mean(r_data);
 
-%% === 拟合简谐模型 r(t) = A * sin(ωt + φ) + b ===
-harmonic = @(p, t) p(1) * sin(p(2)*t + p(3)) + p(4);
-loss = @(p) sum((harmonic(p, time) - y_pos).^2);
+% step6: Define harmonic projection model function 
+model_fun = @(p, t) ...
+    p(6) * cos(pi * t / 180) + p(7) * sin(pi * t / 180) + ...
+    p(1) * sin(p(2) * t + p(3)) .* ( ...
+        (p(4) / norm([p(4), p(5)])) * cos(pi * t / 180) + ...
+        (p(5) / norm([p(4), p(5)])) * sin(pi * t / 180) );
 
-% 初始猜测: A, omega, phi, b
-p0 = [1, 0.1, 0, 0];
-opt = optimset('Display','off');
-params = fminsearch(loss, p0, opt);
-fitted = harmonic(params, time);
+% --- Step 7: Initial guess for parameters [A, omega, phi, u_x, u_y, b_x, b_y] ---
+p0 = [20, 0.026, 0, 0.5, 1e5, 25, -10];
 
-%% === 画轨迹拟合 ===
+% --- Step 8: Fit model to data ---
+options = optimoptions('lsqcurvefit','Display','iter','MaxIterations',1000);
+[p_fit, resnorm] = lsqcurvefit(model_fun, p0, t_data, r_data, [], [], options);
+
+% --- Step 9: Extract fitted parameters ---
+A     = p_fit(1);
+omega = p_fit(2);
+phi   = p_fit(3);
+u_raw = [p_fit(4), p_fit(5)];
+u     = u_raw / norm(u_raw);
+b     = [p_fit(6), p_fit(7)];
+
+% --- Step 10: Evaluate model with fitted parameters ---
+cos_theta = cos(pi * t_data / 180);
+sin_theta = sin(pi * t_data / 180);
+dot_u_n = u(1) * cos_theta + u(2) * sin_theta;
+dot_b_n = b(1) * cos_theta + b(2) * sin_theta;
+r_fit = dot_b_n + A * sin(omega * t_data + phi) .* dot_u_n;
+
+% --- Step 11: Plot and compare ---
 figure;
-plot(time, y_pos, 'b-', 'LineWidth', 2); hold on;
-plot(time, fitted, 'r--', 'LineWidth', 2);
+plot(t_data, r_data, 'b.', 'DisplayName', 'Measured centroid r(t)');
+hold on;
+plot(t_data, r_fit, 'r-', 'LineWidth', 2, 'DisplayName', 'Fitted r(t)');
 xlabel('Time (s)');
-ylabel('Y Position (pixels)');
-legend('Observed', 'Fitted');
-title('Fitted Harmonic Oscillator');
+ylabel('Projection position (mm)');
+title('2D Harmonic Fit using Weighted Centroid (mm)');
+legend;
 grid on;
 
-%% === 输出拟合参数 ===
-fprintf('Fitted model: r(t) = A * sin(omega * t + phi) + b\n');
-fprintf('A = %.4f\n', params(1));
-fprintf('omega = %.4f rad/s → T = %.2f s\n', params(2), 2*pi/params(2));
-fprintf('phi = %.4f rad\n', params(3));
-fprintf('b = %.4f\n', params(4));
+x_traj = b(1) + A * sin(omega * t_data + phi) * u(1);
+y_traj = b(2) + A * sin(omega * t_data + phi) * u(2);
 
-%% === 辅助函数：找每列最大值下标 ===
-function idx = vec2ind(M)
-    [~, idx] = max(M, [], 1);
-end
+figure;
+plot(x_traj, y_traj, 'r-', 'LineWidth', 2); hold on;
+plot(b(1), b(2), 'bo', 'MarkerSize', 8, 'DisplayName', 'Center');
+text(b(1) + 1, b(2), 'Center', 'Color', 'blue', 'FontSize', 10);
+xlabel('x position (mm)');
+ylabel('y position (mm)');
+title('2D Trajectory of the Molecule with Center Marked');
+legend('Trajectory', 'Center');
+axis equal;
+grid on;
 
+% --- Step 12: Output fitted parameters and error ---
+mse = mean((r_data - r_fit).^2);
+fprintf('Fitting Results (Weighted Centroid, mm units):\n');
+fprintf('Amplitude A: %.4f \n', A);
+fprintf('Angular Frequency omega: %.6f rad/s\n', omega);
+fprintf('Phase phi: %.4f rad\n', phi);
+fprintf('Direction vector u (normalized): [%.4e, %.4e]\n', u(1), u(2));
+fprintf('Original u vector: [%.4e, %.4e]\n', u_raw(1), u_raw(2));
+fprintf('Center position b: [%.4f, %.4f] \n', b(1), b(2));
+fprintf('Mean Squared Error (MSE): %.6f \n', mse);

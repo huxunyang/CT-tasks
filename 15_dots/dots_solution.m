@@ -1,6 +1,4 @@
-clc;
-clear;
-close all;
+clc;clear;close all;
 
 load('15_diePunkten_comp.mat');
 % reconstruction
