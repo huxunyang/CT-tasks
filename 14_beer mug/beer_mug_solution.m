@@ -1,5 +1,6 @@
 clc; clear; close all;
 
+% Load data
 load('14_beer_comp.mat');
 
 % show sinogram
@@ -8,51 +9,44 @@ imagesc(sinogram);
 colormap('gray'); 
 colorbar; 
 xlabel('Projection Index'); 
-ylabel('Detector Position'); 
+ylabel('Detector Index'); 
 title('Sinogram Visualization'); 
 
-% reconstruction
-rec = iradon(sinogram, theta, 'linear', 'Ram-Lak', 1.0, nSize);
-figure;
-imshow(rec, []);
-title('Reconstructed Beer Cup');
-colorbar;
+% Choose detector indices
+idx1 = 55;
+idx2 = 105;
 
-% separate two drinkers
-num_rows = size(sinogram, 1);
-midpoint = floor(num_rows / 2);  % Ensure integer index
+% Get projection values from degree 1 360 720
+I0_1 = sinogram(idx1, 1);
+I1_1 = sinogram(idx1, 360);
+I2_1 = sinogram(idx1, 720);
 
-% Extract sinogram data for each drinker at the first and last time steps
-initial_sinogram_1 = sinogram(1:midpoint, 1);   % Drinker 1 at t=0
-final_sinogram_1 = sinogram(1:midpoint, end);   % Drinker 1 at last time
+I0_2 = sinogram(idx2, 1);
+I1_2 = sinogram(idx2, 360);
+I2_2 = sinogram(idx2, 720);
 
-initial_sinogram_2 = sinogram(midpoint+1:end, 1); % Drinker 2 at t=0
-final_sinogram_2 = sinogram(midpoint+1:end, end); % Drinker 2 at last time
+% Compute percentage decreases
+P1_half = (I0_1 - I1_1) / I0_1 * 100;
+P1_last = (I1_1 - I2_1) / I0_1 * 100;
+P1_full = (I0_1 - I2_1) / I0_1 * 100;
 
-% Compute average intensity for each drinker
-initial_intensity_1 = mean(initial_sinogram_1);
-final_intensity_1 = mean(final_sinogram_1);
+P2_half = (I0_2 - I1_2) / I0_2 * 100;
+P2_last = (I1_2 - I2_2) / I0_2 * 100;
+P2_full = (I0_2 - I2_2) / I0_2 * 100;
 
-initial_intensity_2 = mean(initial_sinogram_2);
-final_intensity_2 = mean(final_sinogram_2);
+% Speeds
+S1_half = P1_half / 5;
+S1_last = P1_last / 5;
+S1_full = P1_full / 10;
 
-% Calculate remaining beer percentage
-final_beer_1 = (final_intensity_1 / initial_intensity_1) * 100;
-final_beer_2 = (final_intensity_2 / initial_intensity_2) * 100;
+S2_half = P2_half / 5;
+S2_last = P2_last / 5;
+S2_full = P2_full / 10;
 
-% Calculate beer consumed by each drinker
-beer_consumed_1 = 100 - final_beer_1;
-beer_consumed_2 = 100 - final_beer_2;
-
-% Calculate the average drinking speed in % per second (over 10 seconds)
-time_elapsed = 10;  % Total time in seconds
-
-speed_1 = beer_consumed_1 / time_elapsed;  % Drinker 1 speed
-speed_2 = beer_consumed_2 / time_elapsed;  % Drinker 2 speed
-
-% Display results
-fprintf('Drinker 1 Final Beer Volume: %.2f%%\n', final_beer_1);
-fprintf('Drinker 2 Final Beer Volume: %.2f%%\n', final_beer_2);
-fprintf('Drinker 1 Drinking Speed: %.2f%% per second\n', speed_1);
-fprintf('Drinker 2 Drinking Speed: %.2f%% per second\n', speed_2);
-
+% Print results
+fprintf('Drinker 1 (0–5s):   %.2f %%/sec\n', S1_half);
+fprintf('Drinker 1 (5–10s):  %.2f %%/sec\n', S1_last);
+fprintf('Drinker 1 (0–10s):  %.2f %%/sec\n', S1_full);
+fprintf('Drinker 2 (0–5s):   %.2f %%/sec\n', S2_half);
+fprintf('Drinker 2 (5–10s):  %.2f %%/sec\n', S2_last);
+fprintf('Drinker 2 (0–10s):  %.2f %%/sec\n', S2_full);
