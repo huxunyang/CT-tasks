@@ -3,14 +3,15 @@ clc;clear;close all;
 % load data
 load('15_diePunkten_comp.mat');
 
+
 % show sinogram
-% figure;
-% imagesc(sinogram);
-% colormap gray;
-% title('Sinogram');
-% xlabel('Angle Index');
-% ylabel('Detector Position');
-% colorbar;
+figure;
+imagesc(sinogram);
+colormap gray;
+title('Sinogram');
+xlabel('Angle Index');
+ylabel('Detector Position');
+colorbar;
 
 % projections at 3 angles
 figure;
@@ -33,7 +34,7 @@ grid on;
 % find peaks at each angle
 for i = 1:size(sinogram, 2)
     proj = sinogram(:, i);
-    [pks, locs] = findpeaks(proj, 'MinPeakHeight', 0.5 * max(proj));
+    [pks, locs] = findpeaks(proj, 'MinPeakHeight', 0.3 * max(proj));
     disp(['Angle ' num2str(theta(i)) ': Peaks at ' num2str(locs')]);
     peaks{i} = locs'
 end
@@ -82,15 +83,9 @@ for i = 1:size(points,1)
     end
 end
 
-disp('Recovered coordinates (image-centered): ');
-disp(final_points);
-
 % convert to image coords
 center = nSize / 2;
 pixel_coords = round([center - final_points(:,2), center + final_points(:,1)]);  % [row, col]
-
-disp('Pixel coordinates (row, col): ');
-disp(pixel_coords);
 
 % plot the dots on image
 I = zeros(nSize);
@@ -120,6 +115,21 @@ subplot(1,2,2);
 imagesc(sinogram_sim);
 colormap gray;
 title('Simulated Forward Projection');
+
+rec = iradon(sinogram, theta)
+rec_sim = iradon(sinogram_sim, theta)
+figure
+subplot(1,2,1)
+imshow(rec,[])
+title('Reconstructed Image')
+subplot(1,2,2)
+imshow(rec_sim,[])
+title('Reconstructed Simulated Image')
+
+disp('Recovered coordinates (image-centered): ');
+disp(final_points);
+disp('Pixel coordinates (row, col): ');
+disp(pixel_coords);
 
 % function: compute intersections
 function pt = intersect_lines(L1, L2)
